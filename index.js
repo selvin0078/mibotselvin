@@ -1,24 +1,35 @@
 const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const YTDlpWrap = require('yt-dlp-wrap').default;
-
-// yt-dlp-wrap descarga yt-dlp automáticamente (no necesitas .exe)
 const ytDlpWrap = new YTDlpWrap();
 
 async function iniciarBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sesion');
-    const sock = makeWASocket({ auth: state });
+
+    const sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false, // no muestra QR
+        // Habilitamos pairing code
+        generateHighQualityLinkPreview: true,
+    });
+
+    // Si no hay sesión, genera el código de emparejamiento
+    if (!state.creds.registered) {
+        setTimeout(async () => {
+            const phoneNumber = await question('Ingresa tu número de WhatsApp con código de país (ej: 50212345678): ');
+            const code = await sock.requestPairingCode(phoneNumber.trim());
+            console.log(`Tu código de emparejamiento es: ${code}`);
+            console.log(`Abrí WhatsApp → Dispositivos vinculados → Vincular con código de teléfono → Ingresa este código`);
+        }, 3000);
+    }
 
     sock.ev.on('connection.update', (update) => {
-        if (update.qr) {
-            console.log('¡Escaneá el QR!');
-            qrcode.generate(update.qr, { small: true });
-        }
         if (update.connection === 'open') console.log('¡Bot conectado y listo! 🚀');
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    // El resto del código del .play y comandos es el mismo que antes
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0];
         if (!msg.message) return;
@@ -87,7 +98,7 @@ async function iniciarBot() {
 
             } catch (err) {
                 console.log('Error .play:', err);
-                responder('Error al descargar. Probá otra canción.');
+                responder('Error al descargar.');
             }
             return;
         }
@@ -99,6 +110,16 @@ async function iniciarBot() {
         } else if (texto === 'menu') {
             responder('.play nombre canción → audio MP3 🎶');
         }
+    });
+}
+
+// Función para preguntar número (Railway no tiene input, así que lo hardcodeamos o usamos variable)
+function question(text) {
+    return new Promise(resolve => {
+        console.log(text);
+        // En Railway, ponemos el número manualmente aquí la primera vez
+        // Cambia "50212345678" por tu número real con código de país (sin + ni espacios)
+        resolve('50242924800'); // <-- CAMBIA ESTO POR TU NÚMERO
     });
 }
 
