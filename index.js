@@ -1,12 +1,9 @@
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
-const fs = require('fs');
-const path = require('path');
 const YTDlpWrap = require('yt-dlp-wrap').default;
 
-// Apunta al yt-dlp.exe local
-const ytDlpPath = path.join(__dirname, 'yt-dlp.exe');
-const ytDlpWrap = new YTDlpWrap(ytDlpPath);
+// yt-dlp-wrap descarga yt-dlp automáticamente (no necesitas .exe)
+const ytDlpWrap = new YTDlpWrap();
 
 async function iniciarBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sesion');
@@ -14,7 +11,7 @@ async function iniciarBot() {
 
     sock.ev.on('connection.update', (update) => {
         if (update.qr) {
-            console.log('¡Escaneá el QR con tu WhatsApp!');
+            console.log('¡Escaneá el QR!');
             qrcode.generate(update.qr, { small: true });
         }
         if (update.connection === 'open') console.log('¡Bot conectado y listo! 🚀');
@@ -35,11 +32,11 @@ async function iniciarBot() {
         if (texto.startsWith('.play ')) {
             const query = textoOriginal.slice(6).trim();
             if (!query) {
-                responder('❌ Uso: .play nombre de la canción');
+                responder('Uso: .play nombre canción');
                 return;
             }
 
-            responder(`🔍 Buscando "${query}"...`);
+            responder(`Buscando "${query}"...`);
 
             try {
                 const searchOutput = await ytDlpWrap.execPromise([
@@ -49,7 +46,7 @@ async function iniciarBot() {
 
                 const videoId = searchOutput.trim();
                 if (!videoId) {
-                    responder('❌ No encontré la canción.');
+                    responder('No encontré la canción.');
                     return;
                 }
 
@@ -64,13 +61,13 @@ async function iniciarBot() {
                 const duracion = parseInt(duracionStr) || 0;
 
                 if (duracion > 600) {
-                    responder(`❌ Muy larga (${Math.floor(duracion/60)} min). Máximo 10 min.`);
+                    responder('Muy larga (máx 10 min).');
                     return;
                 }
 
-                responder(`🎵 Descargando: ${titulo}\n⏳ Un momento...`);
+                responder(`Descargando: ${titulo}`);
 
-                const tempFile = path.join(__dirname, `temp_${Date.now()}.mp3`);
+                const tempFile = `temp_${Date.now()}.mp3`;
 
                 await ytDlpWrap.execPromise([
                     videoUrl,
@@ -81,18 +78,16 @@ async function iniciarBot() {
                 ]);
 
                 await sock.sendMessage(chatId, {
-                    audio: fs.readFileSync(tempFile),
+                    audio: { url: tempFile },
                     mimetype: 'audio/mpeg',
                     fileName: `${titulo.substring(0, 60)}.mp3`
                 });
 
-                fs.unlinkSync(tempFile);
-
-                responder('✅ ¡Audio enviado! 🎶');
+                responder('¡Audio enviado! 🎶');
 
             } catch (err) {
-                console.log('Error en .play:', err);
-                responder('❌ Error al descargar. Probá con otra canción.');
+                console.log('Error .play:', err);
+                responder('Error al descargar. Probá otra canción.');
             }
             return;
         }
@@ -100,15 +95,9 @@ async function iniciarBot() {
         if (msg.key.fromMe) return;
 
         if (texto.includes('hola')) {
-            responder('¡Hola! 😊 ¿En qué te puedo ayudar?');
+            responder('¡Hola! ¿En qué te ayudo?');
         } else if (texto === 'menu') {
-            responder(`
-*🤖 MENÚ*
-
-• .play nombre canción → audio MP3 🎶
-
-¡Probá .play despacito ahora mismo!
-            `.trim());
+            responder('.play nombre canción → audio MP3 🎶');
         }
     });
 }
